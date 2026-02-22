@@ -13,6 +13,11 @@ export function getClient(): Client {
   return client;
 }
 
+export async function sendToGroup(text: string): Promise<void> {
+  const sent = await getClient().sendMessage(config.WHATSAPP_GROUP_ID, text);
+  botMessageIds.add(sent.id._serialized);
+}
+
 export async function startBot(): Promise<void> {
   client = new Client({
     authStrategy: new LocalAuth({ dataPath: '.wwebjs_auth' }),

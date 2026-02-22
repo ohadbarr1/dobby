@@ -1,34 +1,10 @@
 import { ParsedIntent, SenderInfo } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
 import { addReminder } from '../db/database';
-import { createEvent, getUpcomingEvents, CalendarEvent } from '../integrations/googleCalendar';
+import { handleAddEvent, handleQueryCalendar } from '../handlers/calendarHandler';
 import { addShoppingItems, getShoppingItems, getTasks } from '../integrations/todoist';
 import config from '../utils/config';
 import logger from '../utils/logger';
-
-type UserKey = 'user1' | 'user2';
-
-function getUserKey(sender: SenderInfo): UserKey {
-  return sender.phone === config.USER1_PHONE ? 'user1' : 'user2';
-}
-
-function formatCalendarEvents(events: CalendarEvent[]): string {
-  return events
-    .map((e) => {
-      const owner = e.calendarOwner === 'user1' ? config.USER1_NAME : config.USER2_NAME;
-      const time = e.isAllDay
-        ? 'All day'
-        : e.start.toLocaleString('en-GB', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-      return `\u{2022} ${e.title} \u{2014} ${time} (${owner})`;
-    })
-    .join('\n');
-}
 
 export async function dispatch(intent: ParsedIntent, sender: SenderInfo): Promise<ActionResult> {
   try {
@@ -42,16 +18,11 @@ export async function dispatch(intent: ParsedIntent, sender: SenderInfo): Promis
         return { success: true };
       }
 
-      case 'ADD_EVENT': {
-        const userKey = getUserKey(sender);
-        await createEvent(userKey, {
-          title: intent.title,
-          start: new Date(intent.start),
-          end: new Date(intent.end),
-          isAllDay: false,
-        });
-        return { success: true };
-      }
+      case 'ADD_EVENT':
+        return await handleAddEvent(intent, sender);
+
+      case 'QUERY_CALENDAR':
+        return await handleQueryCalendar(intent);
 
       case 'ADD_SHOPPING': {
         await addShoppingItems(intent.items);
@@ -61,12 +32,6 @@ export async function dispatch(intent: ParsedIntent, sender: SenderInfo): Promis
       case 'COMPLETE_SHOPPING': {
         // TODO: implement completing items in Todoist
         return { success: true };
-      }
-
-      case 'QUERY_CALENDAR': {
-        const userKey = getUserKey(sender);
-        const events = await getUpcomingEvents(userKey, intent.daysAhead);
-        return { success: true, data: events.length ? formatCalendarEvents(events) : null };
       }
 
       case 'QUERY_SHOPPING': {
