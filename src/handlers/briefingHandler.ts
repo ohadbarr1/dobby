@@ -1,4 +1,5 @@
 import { getMergedEvents, CalendarEvent } from '../integrations/googleCalendar';
+import { getOpenTasks } from '../integrations/todoist';
 import { sendToGroup } from '../bot/whatsappClient';
 import config from '../utils/config';
 import logger from '../utils/logger';
@@ -16,14 +17,37 @@ export async function sendDailyBriefing(): Promise<void> {
   logger.info('Sending daily briefing...');
 
   try {
-    const events = await getMergedEvents(1);
+    const [events, tasks] = await Promise.all([
+      getMergedEvents(1).catch((err) => {
+        logger.error(`Briefing calendar error: ${(err as Error).message}`);
+        return [] as CalendarEvent[];
+      }),
+      getOpenTasks().catch((err) => {
+        logger.error(`Briefing tasks error: ${(err as Error).message}`);
+        return [];
+      }),
+    ]);
 
     const lines: string[] = ['\u{2600}\u{FE0F} Good morning! Here\'s your day:\n'];
 
+    // Calendar section
     if (events.length) {
+      lines.push('\u{1F4C5} *Today\'s events:*');
       lines.push(...events.map(formatBriefingEvent));
     } else {
-      lines.push('No events today \u{2014} enjoy the free time! \u{1F389}');
+      lines.push('\u{1F4C5} No events today');
+    }
+
+    // Tasks section
+    lines.push('');
+    if (tasks.length) {
+      lines.push('\u{1F4DD} *Open tasks:*');
+      tasks.forEach((t) => {
+        const due = t.due ? ` (due ${t.due})` : '';
+        lines.push(`  \u{2022} ${t.content}${due}`);
+      });
+    } else {
+      lines.push('\u{1F4DD} No open tasks \u{2014} enjoy your day!');
     }
 
     await sendToGroup(lines.join('\n'));

@@ -2,7 +2,8 @@ import { ParsedIntent, SenderInfo } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
 import { addReminder } from '../db/database';
 import { handleAddEvent, handleQueryCalendar } from '../handlers/calendarHandler';
-import { addShoppingItems, getShoppingItems, getTasks } from '../integrations/todoist';
+import { handleAddShopping, handleCompleteShopping, handleQueryShopping } from '../handlers/shoppingHandler';
+import { handleQueryTasks } from '../handlers/taskHandler';
 import config from '../utils/config';
 import logger from '../utils/logger';
 
@@ -24,25 +25,17 @@ export async function dispatch(intent: ParsedIntent, sender: SenderInfo): Promis
       case 'QUERY_CALENDAR':
         return await handleQueryCalendar(intent);
 
-      case 'ADD_SHOPPING': {
-        await addShoppingItems(intent.items);
-        return { success: true };
-      }
+      case 'ADD_SHOPPING':
+        return await handleAddShopping(intent);
 
-      case 'COMPLETE_SHOPPING': {
-        // TODO: implement completing items in Todoist
-        return { success: true };
-      }
+      case 'COMPLETE_SHOPPING':
+        return await handleCompleteShopping(intent);
 
-      case 'QUERY_SHOPPING': {
-        const items = await getShoppingItems();
-        return { success: true, data: items.length ? items.map((i) => `\u{2022} ${i}`).join('\n') : null };
-      }
+      case 'QUERY_SHOPPING':
+        return await handleQueryShopping();
 
-      case 'QUERY_TASKS': {
-        const tasks = await getTasks('all');
-        return { success: true, data: tasks.length ? tasks.map((t) => `\u{2022} ${t}`).join('\n') : null };
-      }
+      case 'QUERY_TASKS':
+        return await handleQueryTasks();
 
       case 'HELP':
         return { success: true };

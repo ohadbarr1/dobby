@@ -14,16 +14,39 @@ export async function addShoppingItems(items: string[]): Promise<void> {
   logger.info(`Added ${items.length} item(s) to shopping list`);
 }
 
+export async function completeShoppingItems(items: string[]): Promise<number> {
+  const response = await api.getTasks({ projectId: config.TODOIST_SHOPPING_PROJECT_ID });
+  const tasks = response.results;
+  let completed = 0;
+
+  for (const itemName of items) {
+    const match = tasks.find(
+      (t) => t.content.toLowerCase() === itemName.toLowerCase()
+    );
+    if (match) {
+      await api.closeTask(match.id);
+      completed++;
+    }
+  }
+
+  logger.info(`Completed ${completed}/${items.length} shopping item(s)`);
+  return completed;
+}
+
 export async function getShoppingItems(): Promise<string[]> {
   const response = await api.getTasks({ projectId: config.TODOIST_SHOPPING_PROJECT_ID });
   return response.results.map((t) => t.content);
 }
 
-export async function getTasks(filter: string): Promise<string[]> {
+export interface OpenTask {
+  content: string;
+  due: string | null;
+}
+
+export async function getOpenTasks(): Promise<OpenTask[]> {
   const response = await api.getTasks({ projectId: config.TODOIST_TASKS_PROJECT_ID });
-  const tasks = response.results;
-  if (filter === 'all') return tasks.map((t) => t.content);
-  return tasks
-    .filter((t) => t.content.toLowerCase().includes(filter.toLowerCase()))
-    .map((t) => t.content);
+  return response.results.map((t) => ({
+    content: t.content,
+    due: t.due?.date || null,
+  }));
 }

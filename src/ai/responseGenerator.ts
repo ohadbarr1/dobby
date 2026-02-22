@@ -1,4 +1,5 @@
 import { ParsedIntent } from './intentParser';
+import { OpenTask } from '../integrations/todoist';
 
 export interface ActionResult {
   success: boolean;
@@ -25,34 +26,49 @@ export function generateResponse(intent: ParsedIntent, result: ActionResult): st
     case 'ADD_REMINDER':
       return `\u{2705} Got it! I'll remind about "${intent.message}" on ${formatDatetime(intent.datetime)}.`;
 
-    case 'ADD_EVENT':
-      return `\u{1F4C5} Added "${intent.title}" to the calendar for ${formatDatetime(intent.start)}.`;
+    case 'ADD_EVENT': {
+      const info = result.data as string | undefined;
+      return info
+        ? `\u{1F4C5} Added: ${info}`
+        : `\u{1F4C5} Added "${intent.title}" to the calendar for ${formatDatetime(intent.start)}.`;
+    }
 
-    case 'ADD_SHOPPING':
-      return `\u{1F6D2} Added to your list: ${intent.items.join(', ')}`;
+    case 'ADD_SHOPPING': {
+      const items = result.data as string[];
+      return `\u{1F6D2} Added to your list: ${items.join(', ')}`;
+    }
 
-    case 'COMPLETE_SHOPPING':
-      return `\u{2705} Marked as bought: ${intent.items.join(', ')}`;
+    case 'COMPLETE_SHOPPING': {
+      const count = result.data as number;
+      return `\u{2705} Marked ${count} item(s) as done!`;
+    }
 
     case 'QUERY_CALENDAR': {
-      const data = result.data as string | undefined;
+      const data = result.data as string | null;
       return data
         ? `\u{1F4C5} Here's what's coming up:\n${data}`
         : `\u{1F4C5} Nothing coming up \u{2014} enjoy the free time! \u{1F389}`;
     }
 
     case 'QUERY_SHOPPING': {
-      const data = result.data as string | undefined;
-      return data
-        ? `\u{1F6D2} Shopping list:\n${data}`
-        : `\u{1F6D2} Shopping list is empty!`;
+      const items = result.data as string[];
+      return items.length
+        ? `\u{1F6D2} Shopping list:\n${items.map((i) => `\u{2022} ${i}`).join('\n')}`
+        : `\u{1F6D2} Shopping list is empty \u{2014} nice work! \u{1F389}`;
     }
 
     case 'QUERY_TASKS': {
-      const data = result.data as string | undefined;
-      return data
-        ? `\u{2705} Here are your tasks:\n${data}`
-        : `\u{2705} No tasks found.`;
+      const tasks = result.data as OpenTask[];
+      if (!tasks.length) {
+        return `\u{1F4DD} No open tasks \u{2014} you're on top of things! \u{1F64C}`;
+      }
+      const list = tasks
+        .map((t, i) => {
+          const due = t.due ? ` (due ${formatDate(t.due)})` : '';
+          return `${i + 1}. ${t.content}${due}`;
+        })
+        .join('\n');
+      return `\u{1F4DD} Open tasks:\n${list}`;
     }
 
     case 'HELP':
@@ -74,5 +90,17 @@ function formatDatetime(iso: string): string {
     });
   } catch {
     return iso;
+  }
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return dateStr;
   }
 }
