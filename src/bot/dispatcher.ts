@@ -1,36 +1,32 @@
 import { ParsedIntent, SenderInfo } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
 import { addReminder } from '../db/database';
-import { getEvents, addEvent } from '../integrations/googleCalendar';
+import { createEvent, getUpcomingEvents, CalendarEvent } from '../integrations/googleCalendar';
 import { addShoppingItems, getShoppingItems, getTasks } from '../integrations/todoist';
 import config from '../utils/config';
 import logger from '../utils/logger';
 
-function getUserCalendar(sender: SenderInfo): { calendarId: string; refreshToken: string } {
-  if (sender.phone === config.USER1_PHONE) {
-    return {
-      calendarId: config.GOOGLE_CALENDAR_ID_USER1,
-      refreshToken: config.GOOGLE_REFRESH_TOKEN_USER1,
-    };
-  }
-  return {
-    calendarId: config.GOOGLE_CALENDAR_ID_USER2,
-    refreshToken: config.GOOGLE_REFRESH_TOKEN_USER2,
-  };
+type UserKey = 'user1' | 'user2';
+
+function getUserKey(sender: SenderInfo): UserKey {
+  return sender.phone === config.USER1_PHONE ? 'user1' : 'user2';
 }
 
-function formatEvents(events: { title: string; start: string }[]): string {
+function formatCalendarEvents(events: CalendarEvent[]): string {
   return events
-    .map(
-      (e) =>
-        `\u{2022} ${e.title} \u{2014} ${new Date(e.start).toLocaleString('en-GB', {
-          weekday: 'short',
-          day: 'numeric',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        })}`
-    )
+    .map((e) => {
+      const owner = e.calendarOwner === 'user1' ? config.USER1_NAME : config.USER2_NAME;
+      const time = e.isAllDay
+        ? 'All day'
+        : e.start.toLocaleString('en-GB', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+      return `\u{2022} ${e.title} \u{2014} ${time} (${owner})`;
+    })
     .join('\n');
 }
 
@@ -47,8 +43,13 @@ export async function dispatch(intent: ParsedIntent, sender: SenderInfo): Promis
       }
 
       case 'ADD_EVENT': {
-        const cal = getUserCalendar(sender);
-        await addEvent(cal.calendarId, cal.refreshToken, intent.title, intent.start, intent.end);
+        const userKey = getUserKey(sender);
+        await createEvent(userKey, {
+          title: intent.title,
+          start: new Date(intent.start),
+          end: new Date(intent.end),
+          isAllDay: false,
+        });
         return { success: true };
       }
 
@@ -63,12 +64,9 @@ export async function dispatch(intent: ParsedIntent, sender: SenderInfo): Promis
       }
 
       case 'QUERY_CALENDAR': {
-        const cal = getUserCalendar(sender);
-        const now = new Date();
-        const end = new Date(now);
-        end.setDate(end.getDate() + intent.daysAhead);
-        const events = await getEvents(cal.calendarId, cal.refreshToken, now.toISOString(), end.toISOString());
-        return { success: true, data: events.length ? formatEvents(events) : null };
+        const userKey = getUserKey(sender);
+        const events = await getUpcomingEvents(userKey, intent.daysAhead);
+        return { success: true, data: events.length ? formatCalendarEvents(events) : null };
       }
 
       case 'QUERY_SHOPPING': {

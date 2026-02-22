@@ -1,33 +1,30 @@
 import cron from 'node-cron';
 import { getClient } from './whatsappClient';
-import { getEvents } from '../integrations/googleCalendar';
+import { getUpcomingEvents, CalendarEvent } from '../integrations/googleCalendar';
 import { getTasks } from '../integrations/todoist';
 import { getPendingReminders, markReminderSent } from '../db/database';
 import config from '../utils/config';
 import logger from '../utils/logger';
 
-function todayRange(): { start: string; end: string } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  return { start: start.toISOString(), end: end.toISOString() };
+function formatBriefingEvents(events: CalendarEvent[]): string[] {
+  return events.map((e) => {
+    const time = e.isAllDay
+      ? 'All day'
+      : e.start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `  \u{2022} ${e.title} (${time})`;
+  });
 }
 
 async function sendMorningBriefing(): Promise<void> {
   logger.info('Sending morning briefing...');
-  const { start, end } = todayRange();
-  const lines: string[] = ['🌅 *Good morning! Here\'s your daily briefing:*\n'];
+  const lines: string[] = ['\u{1F305} *Good morning! Here\'s your daily briefing:*\n'];
 
-  for (const [name, refreshToken, calendarId] of [
-    [config.USER1_NAME, config.GOOGLE_REFRESH_TOKEN_USER1, config.GOOGLE_CALENDAR_ID_USER1],
-    [config.USER2_NAME, config.GOOGLE_REFRESH_TOKEN_USER2, config.GOOGLE_CALENDAR_ID_USER2],
-  ]) {
+  for (const [userKey, name] of [['user1', config.USER1_NAME], ['user2', config.USER2_NAME]] as const) {
     try {
-      const events = await getEvents(calendarId, refreshToken, start, end);
+      const events = await getUpcomingEvents(userKey, 1);
       if (events.length) {
-        lines.push(`📅 *${name}'s events today:*`);
-        events.forEach((e) => lines.push(`  • ${e.title}`));
+        lines.push(`\u{1F4C5} *${name}'s events today:*`);
+        lines.push(...formatBriefingEvents(events));
         lines.push('');
       }
     } catch (err) {
@@ -38,8 +35,8 @@ async function sendMorningBriefing(): Promise<void> {
   try {
     const tasks = await getTasks('all');
     if (tasks.length) {
-      lines.push('✅ *Open tasks:*');
-      tasks.forEach((t) => lines.push(`  • ${t}`));
+      lines.push('\u{2705} *Open tasks:*');
+      tasks.forEach((t) => lines.push(`  \u{2022} ${t}`));
     }
   } catch (err) {
     logger.error(`Briefing: tasks fetch failed: ${(err as Error).message}`);
@@ -61,7 +58,7 @@ async function checkReminders(): Promise<void> {
     try {
       await client.sendMessage(
         config.WHATSAPP_GROUP_ID,
-        `⏰ Reminder for *${reminder.for_whom}*: ${reminder.message}`
+        `\u{23F0} Reminder for *${reminder.for_whom}*: ${reminder.message}`
       );
       markReminderSent(reminder.id);
       logger.info(`Sent reminder #${reminder.id}`);
