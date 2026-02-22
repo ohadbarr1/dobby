@@ -1,4 +1,1 @@
-declare module 'qrcode-terminal' {
-  function generate(text: string, opts?: { small?: boolean }): void;
-  export = { generate };
-}
+declare module 'qrcode-terminal';
