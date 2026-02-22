@@ -1,10 +1,9 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import config from '../utils/config';
 import logger from '../utils/logger';
 import { getContext, addToContext } from './context';
 
-const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const groq = new Groq({ apiKey: config.GROQ_API_KEY });
 
 export interface SenderInfo {
   name: string;
@@ -72,20 +71,24 @@ export async function parseIntent(text: string, sender: SenderInfo): Promise<Par
   logger.info(`Parsing intent for: "${text}" (user: ${sender.name})`);
 
   try {
-    // Build conversation history from context
     const history = getContext(sender.phone);
-    const historyParts = history.map((e) => ({
-      role: e.role === 'user' ? 'user' : 'model',
-      parts: [{ text: e.content }],
-    }));
+    const messages: Groq.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: buildSystemPrompt(sender) },
+      ...history.map((e) => ({
+        role: (e.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: e.content,
+      })),
+      { role: 'user', content: text },
+    ];
 
-    const chat = model.startChat({
-      systemInstruction: { role: 'user', parts: [{ text: buildSystemPrompt(sender) }] },
-      history: historyParts as any,
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      max_tokens: 400,
+      temperature: 0,
     });
 
-    const result = await chat.sendMessage(text);
-    const raw = result.response.text().trim();
+    const raw = response.choices[0]?.message?.content?.trim() || '';
 
     // Strip markdown code fences if present
     const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
