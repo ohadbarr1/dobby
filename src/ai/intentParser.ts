@@ -1,9 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import config from '../utils/config';
 import logger from '../utils/logger';
 import { getContext, addToContext } from './context';
 
-const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 export interface SenderInfo {
   name: string;
@@ -30,7 +31,7 @@ function buildSystemPrompt(sender: SenderInfo): string {
   return `You are Dobby, a friendly family assistant in a WhatsApp group.
 The current user is ${sender.name}. Current datetime (ISO): ${new Date().toISOString()}.
 Timezone: ${config.TIMEZONE}.
-Parse the user message into exactly one of the defined intents and return valid JSON only — no markdown, no explanation.
+Parse the user message into exactly one of the defined intents and return valid JSON only — no markdown, no explanation, no code fences.
 For datetimes, always output full ISO 8601 strings.
 For ADD_REMINDER forWhom: use 'both' if the user says 'us' or 'we', else infer from context.
 For CHITCHAT, set reply to a short friendly response as Dobby (max 2 sentences, 1 emoji).
@@ -71,29 +72,30 @@ export async function parseIntent(text: string, sender: SenderInfo): Promise<Par
   logger.info(`Parsing intent for: "${text}" (user: ${sender.name})`);
 
   try {
-    // Build messages with conversation context
+    // Build conversation history from context
     const history = getContext(sender.phone);
-    const messages: Anthropic.MessageParam[] = [
-      ...history.map((e) => ({ role: e.role as 'user' | 'assistant', content: e.content })),
-      { role: 'user', content: text },
-    ];
+    const historyParts = history.map((e) => ({
+      role: e.role === 'user' ? 'user' : 'model',
+      parts: [{ text: e.content }],
+    }));
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 400,
-      system: buildSystemPrompt(sender),
-      messages,
+    const chat = model.startChat({
+      systemInstruction: buildSystemPrompt(sender),
+      history: historyParts as any,
     });
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    const result = await chat.sendMessage(text);
+    const raw = result.response.text().trim();
+
+    // Strip markdown code fences if present
+    const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
 
     try {
-      const parsed = JSON.parse(raw) as ParsedIntent;
+      const parsed = JSON.parse(cleaned) as ParsedIntent;
       logger.info(`Parsed intent: ${parsed.intent}`);
 
-      // Store context for follow-up messages
       addToContext(sender.phone, 'user', text);
-      addToContext(sender.phone, 'assistant', raw);
+      addToContext(sender.phone, 'assistant', cleaned);
 
       return parsed;
     } catch {

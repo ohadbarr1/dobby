@@ -7,7 +7,7 @@ interface Config {
   USER1_PHONE: string;
   USER2_NAME: string;
   USER2_PHONE: string;
-  ANTHROPIC_API_KEY: string;
+  GEMINI_API_KEY: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   GOOGLE_REFRESH_TOKEN_USER1: string;
@@ -28,7 +28,7 @@ const REQUIRED_KEYS: (keyof Config)[] = [
   'USER1_PHONE',
   'USER2_NAME',
   'USER2_PHONE',
-  'ANTHROPIC_API_KEY',
+  'GEMINI_API_KEY',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_REFRESH_TOKEN_USER1',
