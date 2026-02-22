@@ -1,5 +1,5 @@
 import { getMergedEvents, CalendarEvent } from '../integrations/googleCalendar';
-import { getOpenTasks } from '../integrations/todoist';
+import { getOpenTasks } from '../integrations/reminders';
 import { sendToGroup } from '../bot/whatsappClient';
 import config from '../utils/config';
 import logger from '../utils/logger';

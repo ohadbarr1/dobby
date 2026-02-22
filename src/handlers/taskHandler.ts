@@ -1,5 +1,5 @@
 import { ActionResult } from '../ai/responseGenerator';
-import { getOpenTasks } from '../integrations/todoist';
+import { getOpenTasks } from '../integrations/reminders';
 import logger from '../utils/logger';
 
 export async function handleQueryTasks(): Promise<ActionResult> {

@@ -1,6 +1,6 @@
 import { ParsedIntent } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
-import { addShoppingItems, completeShoppingItems, getShoppingItems } from '../integrations/todoist';
+import { addShoppingItems, completeShoppingItems, getShoppingItems } from '../integrations/reminders';
 import logger from '../utils/logger';
 
 type AddShoppingIntent = Extract<ParsedIntent, { intent: 'ADD_SHOPPING' }>;
