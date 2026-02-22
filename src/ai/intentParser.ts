@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import config from '../utils/config';
 import logger from '../utils/logger';
+import { getContext, addToContext } from './context';
 
 const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
 
@@ -70,11 +71,18 @@ export async function parseIntent(text: string, sender: SenderInfo): Promise<Par
   logger.info(`Parsing intent for: "${text}" (user: ${sender.name})`);
 
   try {
+    // Build messages with conversation context
+    const history = getContext(sender.phone);
+    const messages: Anthropic.MessageParam[] = [
+      ...history.map((e) => ({ role: e.role as 'user' | 'assistant', content: e.content })),
+      { role: 'user', content: text },
+    ];
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 400,
       system: buildSystemPrompt(sender),
-      messages: [{ role: 'user', content: text }],
+      messages,
     });
 
     const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
@@ -82,6 +90,11 @@ export async function parseIntent(text: string, sender: SenderInfo): Promise<Par
     try {
       const parsed = JSON.parse(raw) as ParsedIntent;
       logger.info(`Parsed intent: ${parsed.intent}`);
+
+      // Store context for follow-up messages
+      addToContext(sender.phone, 'user', text);
+      addToContext(sender.phone, 'assistant', raw);
+
       return parsed;
     } catch {
       logger.error(`Failed to parse intent JSON: ${raw}`);
