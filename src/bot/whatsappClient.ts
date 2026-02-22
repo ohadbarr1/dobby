@@ -2,23 +2,27 @@ import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const qrcode = require('qrcode-terminal');
 import { handleMessage } from '../handlers/messageHandler';
-import config from '../utils/config';
+import { getFamilyContext } from '../services/familyService';
 import logger from '../utils/logger';
 
 let client: Client;
-let botReplyInProgress = false; // prevents loop: bot reply → triggers message_create → bot replies again
+const botMessageIds = new Set<string>();
 
 export function getClient(): Client {
   if (!client) throw new Error('WhatsApp client not initialized');
   return client;
 }
 
-export async function sendToGroup(text: string): Promise<void> {
-  botReplyInProgress = true;
-  try {
-    await getClient().sendMessage(config.WHATSAPP_GROUP_ID, text);
-  } finally {
-    setTimeout(() => { botReplyInProgress = false; }, 2000);
+export async function sendToGroup(groupId: string, text: string): Promise<void> {
+  const sent = await getClient().sendMessage(groupId, text);
+  botMessageIds.add(sent.id._serialized);
+  setTimeout(() => botMessageIds.delete(sent.id._serialized), 30_000);
+}
+
+export async function destroyClient(): Promise<void> {
+  if (client) {
+    await client.destroy();
+    logger.info('WhatsApp client destroyed');
   }
 }
 
@@ -53,28 +57,32 @@ export async function startBot(): Promise<void> {
 
   client.on('message_create', async (msg: Message) => {
     try {
-      // Skip if the bot is currently sending a reply
-      if (botReplyInProgress) return;
+      // Skip messages the bot itself sent
+      if (botMessageIds.has(msg.id._serialized)) return;
 
       const chat = await msg.getChat();
-      if (chat.id._serialized !== config.WHATSAPP_GROUP_ID) return;
+      const groupId = chat.id._serialized;
 
-      // For own messages use USER1_PHONE, for others get from contact
-      const phone = msg.fromMe
-        ? config.USER1_PHONE
-        : (await msg.getContact()).number;
+      // Determine sender phone
+      let phone: string;
+      if (msg.fromMe) {
+        // The human whose WhatsApp session the bot runs on
+        phone = client.info.wid.user;
+      } else {
+        phone = (await msg.getContact()).number;
+      }
 
-      logger.info(`[${phone}${msg.fromMe ? ' (me)' : ''}] ${msg.body}`);
+      // Look up family and member from the database
+      const ctx = await getFamilyContext(groupId, phone);
+      if (!ctx) return; // Not a registered family/member — ignore
 
-      const response = await handleMessage(phone, msg.body);
+      logger.info(`[${ctx.family.name}/${ctx.member.name}] ${msg.body}`);
+
+      const response = await handleMessage(ctx, msg.body);
       if (response) {
-        botReplyInProgress = true;
-        try {
-          await msg.reply(response);
-        } finally {
-          // Keep the flag on for 2 seconds so the bot's reply message_create event is ignored
-          setTimeout(() => { botReplyInProgress = false; }, 2000);
-        }
+        const sent = await msg.reply(response);
+        botMessageIds.add(sent.id._serialized);
+        setTimeout(() => botMessageIds.delete(sent.id._serialized), 30_000);
       }
     } catch (err) {
       logger.error(`Message handling error: ${(err as Error).message}`);

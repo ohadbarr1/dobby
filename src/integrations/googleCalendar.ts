@@ -1,4 +1,5 @@
 import { google, calendar_v3 } from 'googleapis';
+import { FamilyMember } from '../types/family';
 import config from '../utils/config';
 import logger from '../utils/logger';
 
@@ -8,48 +9,35 @@ export interface CalendarEvent {
   start: Date;
   end: Date;
   isAllDay: boolean;
-  calendarOwner: 'user1' | 'user2';
+  calendarOwner: string;
 }
 
-type UserKey = 'user1' | 'user2';
-
-function getOAuth2Client(user: UserKey) {
+function getOAuth2Client(member: FamilyMember) {
   const oauth2Client = new google.auth.OAuth2(
     config.GOOGLE_CLIENT_ID,
-    config.GOOGLE_CLIENT_SECRET,
-    'http://localhost:3000/callback'
+    config.GOOGLE_CLIENT_SECRET
   );
-
-  const refreshToken = user === 'user1'
-    ? config.GOOGLE_REFRESH_TOKEN_USER1
-    : config.GOOGLE_REFRESH_TOKEN_USER2;
-
-  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  oauth2Client.setCredentials({ refresh_token: member.googleRefreshToken });
   return oauth2Client;
 }
 
-function getCalendarId(user: UserKey): string {
-  return user === 'user1'
-    ? config.GOOGLE_CALENDAR_ID_USER1
-    : config.GOOGLE_CALENDAR_ID_USER2;
-}
-
-function parseEvent(item: calendar_v3.Schema$Event, owner: UserKey): CalendarEvent {
+function parseEvent(item: calendar_v3.Schema$Event, ownerName: string): CalendarEvent {
   const isAllDay = !item.start?.dateTime;
   return {
-    id: item.id || '',
+    id: item.iCalUID || item.id || '',
     title: item.summary || '(No title)',
     start: new Date(item.start?.dateTime || item.start?.date || ''),
     end: new Date(item.end?.dateTime || item.end?.date || ''),
     isAllDay,
-    calendarOwner: owner,
+    calendarOwner: ownerName,
   };
 }
 
-export async function getUpcomingEvents(user: UserKey, daysAhead = 1): Promise<CalendarEvent[]> {
-  const auth = getOAuth2Client(user);
+export async function getUpcomingEvents(member: FamilyMember, daysAhead = 1): Promise<CalendarEvent[]> {
+  if (!member.googleRefreshToken || !member.googleCalendarId) return [];
+
+  const auth = getOAuth2Client(member);
   const calendar = google.calendar({ version: 'v3', auth });
-  const calendarId = getCalendarId(user);
 
   const now = new Date();
   const end = new Date(now);
@@ -57,27 +45,30 @@ export async function getUpcomingEvents(user: UserKey, daysAhead = 1): Promise<C
 
   try {
     const response = await calendar.events.list({
-      calendarId,
+      calendarId: member.googleCalendarId,
       timeMin: now.toISOString(),
       timeMax: end.toISOString(),
       singleEvents: true,
       orderBy: 'startTime',
     });
 
-    return (response.data.items || []).map((item) => parseEvent(item, user));
+    return (response.data.items || []).map((item) => parseEvent(item, member.name));
   } catch (err) {
-    logger.error(`Google Calendar getUpcomingEvents error (${user}): ${(err as Error).message}`);
+    logger.error(`Google Calendar getUpcomingEvents error (${member.name}): ${(err as Error).message}`);
     throw err;
   }
 }
 
 export async function createEvent(
-  user: UserKey,
+  member: FamilyMember,
   event: Omit<CalendarEvent, 'id' | 'calendarOwner'>
 ): Promise<CalendarEvent> {
-  const auth = getOAuth2Client(user);
+  if (!member.googleRefreshToken || !member.googleCalendarId) {
+    throw new Error(`Calendar not connected for ${member.name}`);
+  }
+
+  const auth = getOAuth2Client(member);
   const calendar = google.calendar({ version: 'v3', auth });
-  const calendarId = getCalendarId(user);
 
   const requestBody: calendar_v3.Schema$Event = {
     summary: event.title,
@@ -90,47 +81,46 @@ export async function createEvent(
   };
 
   try {
-    const response = await calendar.events.insert({ calendarId, requestBody });
-    logger.info(`Created calendar event: ${event.title} (${user})`);
+    const response = await calendar.events.insert({
+      calendarId: member.googleCalendarId,
+      requestBody,
+    });
+    logger.info(`Created calendar event: ${event.title} (${member.name})`);
     return {
-      id: response.data.id || '',
+      id: response.data.iCalUID || response.data.id || '',
       title: event.title,
       start: event.start,
       end: event.end,
       isAllDay: event.isAllDay,
-      calendarOwner: user,
+      calendarOwner: member.name,
     };
   } catch (err) {
-    logger.error(`Google Calendar createEvent error (${user}): ${(err as Error).message}`);
+    logger.error(`Google Calendar createEvent error (${member.name}): ${(err as Error).message}`);
     throw err;
   }
 }
 
-export async function getMergedEvents(daysAhead = 1): Promise<CalendarEvent[]> {
-  const [user1Events, user2Events] = await Promise.all([
-    getUpcomingEvents('user1', daysAhead).catch((err) => {
-      logger.error(`Failed to fetch user1 calendar: ${(err as Error).message}`);
-      return [] as CalendarEvent[];
-    }),
-    getUpcomingEvents('user2', daysAhead).catch((err) => {
-      logger.error(`Failed to fetch user2 calendar: ${(err as Error).message}`);
-      return [] as CalendarEvent[];
-    }),
-  ]);
+export async function getMergedEvents(members: FamilyMember[], daysAhead = 1): Promise<CalendarEvent[]> {
+  const results = await Promise.all(
+    members.map((m) =>
+      getUpcomingEvents(m, daysAhead).catch((err) => {
+        logger.error(`Failed to fetch calendar for ${m.name}: ${(err as Error).message}`);
+        return [] as CalendarEvent[];
+      })
+    )
+  );
 
-  const all = [...user1Events, ...user2Events];
+  const all = results.flat();
 
-  // Deduplicate by title + start time
+  // Deduplicate by iCalUID (or fall back to title+time)
   const seen = new Set<string>();
   const deduped = all.filter((e) => {
-    const key = `${e.title}|${e.start.getTime()}`;
+    const key = e.id || `${e.title}|${e.start.getTime()}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  // Sort by start time
   deduped.sort((a, b) => a.start.getTime() - b.start.getTime());
-
   return deduped;
 }

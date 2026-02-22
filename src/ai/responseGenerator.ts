@@ -1,5 +1,5 @@
 import { ParsedIntent } from './intentParser';
-import { OpenTask } from '../integrations/reminders';
+import { OpenTask } from '../db/repositories/taskRepo';
 
 export interface ActionResult {
   success: boolean;

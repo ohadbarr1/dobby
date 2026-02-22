@@ -1,55 +1,61 @@
-import Database from 'better-sqlite3';
+import { Pool, PoolClient } from 'pg';
+import fs from 'fs';
 import path from 'path';
+import config from '../utils/config';
 import logger from '../utils/logger';
 
-const DB_PATH = path.join('data', 'dobby.db');
+let pool: Pool;
 
-let db: Database.Database;
+export async function initDb(): Promise<void> {
+  pool = new Pool({ connectionString: config.DATABASE_URL });
 
-export function initDb(): void {
-  db = new Database(DB_PATH);
+  const client = await pool.connect();
+  try {
+    await runMigrations(client);
+    logger.info('Database initialized');
+  } finally {
+    client.release();
+  }
+}
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS reminders (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      for_whom    TEXT    NOT NULL,
-      datetime    TEXT    NOT NULL,
-      message     TEXT    NOT NULL,
-      sent        INTEGER NOT NULL DEFAULT 0,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+async function runMigrations(client: PoolClient): Promise<void> {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
-  logger.info('Database initialized');
+  const migrationsDir = path.join(__dirname, 'migrations');
+  if (!fs.existsSync(migrationsDir)) return;
+
+  const files = fs.readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+
+  for (const file of files) {
+    const { rows } = await client.query(
+      'SELECT 1 FROM _migrations WHERE name = $1',
+      [file]
+    );
+    if (rows.length > 0) continue;
+
+    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
+    await client.query(sql);
+    await client.query('INSERT INTO _migrations (name) VALUES ($1)', [file]);
+    logger.info(`Applied migration: ${file}`);
+  }
 }
 
-function getDb(): Database.Database {
-  if (!db) throw new Error('Database not initialized — call initDb() first');
-  return db;
+export function getPool(): Pool {
+  if (!pool) throw new Error('Database not initialized — call initDb() first');
+  return pool;
 }
 
-export interface Reminder {
-  id: number;
-  for_whom: string;
-  datetime: string;
-  message: string;
-  sent: number;
-  created_at: string;
-}
-
-export function addReminder(forWhom: string, datetime: string, message: string): number {
-  const result = getDb()
-    .prepare('INSERT INTO reminders (for_whom, datetime, message) VALUES (?, ?, ?)')
-    .run(forWhom, datetime, message);
-  return result.lastInsertRowid as number;
-}
-
-export function getPendingReminders(): Reminder[] {
-  return getDb()
-    .prepare("SELECT * FROM reminders WHERE sent = 0 AND datetime <= datetime('now') ORDER BY datetime")
-    .all() as Reminder[];
-}
-
-export function markReminderSent(id: number): void {
-  getDb().prepare('UPDATE reminders SET sent = 1 WHERE id = ?').run(id);
+export async function closeDb(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    logger.info('Database pool closed');
+  }
 }

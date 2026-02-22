@@ -1,14 +1,15 @@
 import { ParsedIntent } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
-import { addShoppingItems, completeShoppingItems, getShoppingItems } from '../integrations/reminders';
+import { FamilyContext } from '../types/family';
+import * as shoppingRepo from '../db/repositories/shoppingRepo';
 import logger from '../utils/logger';
 
 type AddShoppingIntent = Extract<ParsedIntent, { intent: 'ADD_SHOPPING' }>;
 type CompleteShoppingIntent = Extract<ParsedIntent, { intent: 'COMPLETE_SHOPPING' }>;
 
-export async function handleAddShopping(intent: AddShoppingIntent): Promise<ActionResult> {
+export async function handleAddShopping(intent: AddShoppingIntent, ctx: FamilyContext): Promise<ActionResult> {
   try {
-    await addShoppingItems(intent.items);
+    await shoppingRepo.addItems(ctx.family.id, intent.items);
     return { success: true, data: intent.items };
   } catch (err) {
     logger.error(`handleAddShopping error: ${(err as Error).message}`);
@@ -16,9 +17,9 @@ export async function handleAddShopping(intent: AddShoppingIntent): Promise<Acti
   }
 }
 
-export async function handleCompleteShopping(intent: CompleteShoppingIntent): Promise<ActionResult> {
+export async function handleCompleteShopping(intent: CompleteShoppingIntent, ctx: FamilyContext): Promise<ActionResult> {
   try {
-    const count = await completeShoppingItems(intent.items);
+    const count = await shoppingRepo.completeItems(ctx.family.id, intent.items);
     return { success: true, data: count };
   } catch (err) {
     logger.error(`handleCompleteShopping error: ${(err as Error).message}`);
@@ -26,9 +27,9 @@ export async function handleCompleteShopping(intent: CompleteShoppingIntent): Pr
   }
 }
 
-export async function handleQueryShopping(): Promise<ActionResult> {
+export async function handleQueryShopping(ctx: FamilyContext): Promise<ActionResult> {
   try {
-    const items = await getShoppingItems();
+    const items = await shoppingRepo.getActiveItems(ctx.family.id);
     return { success: true, data: items };
   } catch (err) {
     logger.error(`handleQueryShopping error: ${(err as Error).message}`);
