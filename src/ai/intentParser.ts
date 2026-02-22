@@ -4,7 +4,7 @@ import logger from '../utils/logger';
 import { getContext, addToContext } from './context';
 
 const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 export interface SenderInfo {
   name: string;
@@ -80,7 +80,7 @@ export async function parseIntent(text: string, sender: SenderInfo): Promise<Par
     }));
 
     const chat = model.startChat({
-      systemInstruction: buildSystemPrompt(sender),
+      systemInstruction: { role: 'user', parts: [{ text: buildSystemPrompt(sender) }] },
       history: historyParts as any,
     });
 

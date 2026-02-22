@@ -6,7 +6,7 @@ import config from '../utils/config';
 import logger from '../utils/logger';
 
 let client: Client;
-const botMessageIds = new Set<string>(); // track messages sent by the bot
+let botReplyInProgress = false; // prevents loop: bot reply → triggers message_create → bot replies again
 
 export function getClient(): Client {
   if (!client) throw new Error('WhatsApp client not initialized');
@@ -14,8 +14,12 @@ export function getClient(): Client {
 }
 
 export async function sendToGroup(text: string): Promise<void> {
-  const sent = await getClient().sendMessage(config.WHATSAPP_GROUP_ID, text);
-  botMessageIds.add(sent.id._serialized);
+  botReplyInProgress = true;
+  try {
+    await getClient().sendMessage(config.WHATSAPP_GROUP_ID, text);
+  } finally {
+    setTimeout(() => { botReplyInProgress = false; }, 2000);
+  }
 }
 
 export async function startBot(): Promise<void> {
@@ -36,7 +40,7 @@ export async function startBot(): Promise<void> {
   });
 
   client.on('ready', () => {
-    logger.info('✅ WhatsApp client is ready');
+    logger.info('\u{2705} WhatsApp client is ready');
   });
 
   client.on('auth_failure', (msg) => {
@@ -49,11 +53,11 @@ export async function startBot(): Promise<void> {
 
   client.on('message_create', async (msg: Message) => {
     try {
+      // Skip if the bot is currently sending a reply
+      if (botReplyInProgress) return;
+
       const chat = await msg.getChat();
       if (chat.id._serialized !== config.WHATSAPP_GROUP_ID) return;
-
-      // Skip messages the bot itself sent (prevents loops)
-      if (botMessageIds.has(msg.id._serialized)) return;
 
       // For own messages use USER1_PHONE, for others get from contact
       const phone = msg.fromMe
@@ -64,10 +68,13 @@ export async function startBot(): Promise<void> {
 
       const response = await handleMessage(phone, msg.body);
       if (response) {
-        const sent = await msg.reply(response);
-        botMessageIds.add(sent.id._serialized);
-        // Clean up old IDs to prevent memory leak
-        if (botMessageIds.size > 1000) botMessageIds.clear();
+        botReplyInProgress = true;
+        try {
+          await msg.reply(response);
+        } finally {
+          // Keep the flag on for 2 seconds so the bot's reply message_create event is ignored
+          setTimeout(() => { botReplyInProgress = false; }, 2000);
+        }
       }
     } catch (err) {
       logger.error(`Message handling error: ${(err as Error).message}`);
