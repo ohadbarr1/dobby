@@ -1,18 +1,17 @@
 import logger from './utils/logger';
+import './utils/config'; // validates all env vars on import
+import { initDb } from './db/database';
+import { startCronJobs } from './bot/cronJobs';
+import { startBot } from './bot/whatsappClient';
 
-try {
-  // Validate all required environment variables on startup
-  import('./utils/config').then(() => {
-    logger.info('🤖 Dobby is starting up...');
-
-    // TODO: initDb()
-    // TODO: startBot()
-    // TODO: startCronJobs()
-  }).catch((err: Error) => {
-    logger.error(err.message);
-    process.exit(1);
-  });
-} catch (err) {
-  logger.error((err as Error).message);
-  process.exit(1);
+async function main(): Promise<void> {
+  logger.info('🤖 Dobby is starting up...');
+  initDb();
+  startCronJobs();
+  await startBot(); // blocks until WhatsApp disconnects
 }
+
+main().catch((err: Error) => {
+  logger.error(err.message);
+  process.exit(1);
+});
