@@ -15,3 +15,16 @@ export async function getFamilyContext(
 
   return { family, member, allMembers };
 }
+
+export async function getFamilyContextByPhone(
+  phone: string
+): Promise<FamilyContext | null> {
+  const member = await memberRepo.getMemberByPhoneGlobal(phone);
+  if (!member) return null;
+
+  const family = await familyRepo.getFamilyById(member.familyId);
+  if (!family) return null;
+
+  const allMembers = await memberRepo.getMembersByFamilyId(family.id);
+  return { family, member, allMembers };
+}

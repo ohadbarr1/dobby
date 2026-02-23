@@ -44,6 +44,14 @@ export async function createMember(data: {
   return rowToMember(rows[0]);
 }
 
+export async function getMemberByPhoneGlobal(phone: string): Promise<FamilyMember | null> {
+  const { rows } = await getPool().query(
+    'SELECT * FROM family_members WHERE phone = $1 LIMIT 1',
+    [phone]
+  );
+  return rows.length > 0 ? rowToMember(rows[0]) : null;
+}
+
 export async function updateMemberCalendar(
   memberId: number,
   refreshToken: string,

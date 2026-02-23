@@ -14,6 +14,11 @@ function rowToFamily(row: any): Family {
   };
 }
 
+export async function getFamilyById(id: number): Promise<Family | null> {
+  const { rows } = await getPool().query('SELECT * FROM families WHERE id = $1', [id]);
+  return rows.length > 0 ? rowToFamily(rows[0]) : null;
+}
+
 export async function getFamilyByGroupId(groupId: string): Promise<Family | null> {
   const { rows } = await getPool().query(
     'SELECT * FROM families WHERE whatsapp_group_id = $1',
