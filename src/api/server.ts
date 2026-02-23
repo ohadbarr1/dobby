@@ -4,6 +4,7 @@ import config from '../utils/config';
 import logger from '../utils/logger';
 import { familiesRouter } from './routes/families';
 import { membersRouter } from './routes/members';
+import { authRouter } from './routes/auth';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api', (req, res, next) => {
 
 app.use('/api/families', familiesRouter);
 app.use('/api/families', membersRouter);
+app.use('/api/auth', authRouter);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
