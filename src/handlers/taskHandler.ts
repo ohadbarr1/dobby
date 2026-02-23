@@ -2,6 +2,7 @@ import { ActionResult } from '../ai/responseGenerator';
 import { FamilyContext } from '../types/family';
 import * as taskRepo from '../db/repositories/taskRepo';
 import { getIncompleteReminders } from '../integrations/appleReminders';
+import { t } from '../i18n';
 import logger from '../utils/logger';
 
 export async function handleQueryTasks(ctx: FamilyContext): Promise<ActionResult> {
@@ -16,6 +17,6 @@ export async function handleQueryTasks(ctx: FamilyContext): Promise<ActionResult
     return { success: true, data: { tasks, appleReminders } };
   } catch (err) {
     logger.error(`handleQueryTasks error: ${(err as Error).message}`);
-    return { success: false, errorMsg: 'Failed to fetch tasks \u{1F648}' };
+    return { success: false, errorMsg: t('tasksFetchFailed') };
   }
 }

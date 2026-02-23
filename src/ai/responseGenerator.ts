@@ -1,6 +1,7 @@
 import { ParsedIntent } from './intentParser';
 import { OpenTask } from '../db/repositories/taskRepo';
 import { AppleReminder } from '../integrations/appleReminders';
+import { t } from '../i18n';
 
 export interface ActionResult {
   success: boolean;
@@ -8,54 +9,44 @@ export interface ActionResult {
   errorMsg?: string;
 }
 
-const HELP_TEXT = `\u{1F44B} Here's what I can do:
-
-\u{2022} *Add a reminder* \u{2014} "remind me to call mom tomorrow at 3pm"
-\u{2022} *Add an event* \u{2014} "add meeting with Dan on Sunday 10am-11am"
-\u{2022} *Shopping list* \u{2014} "add milk and eggs" / "what's on the shopping list?" / "bought milk"
-\u{2022} *Calendar* \u{2014} "what's on the calendar this week?"
-\u{2022} *Tasks* \u{2014} "show tasks"
-
-Just send a message and I'll figure it out! \u{1F916}`;
-
 export function generateResponse(intent: ParsedIntent, result: ActionResult): string {
   if (!result.success) {
-    return `\u{274C} ${result.errorMsg || 'Something went wrong'}`;
+    return t('error', { msg: result.errorMsg || t('errorDefault') });
   }
 
   switch (intent.intent) {
     case 'ADD_REMINDER':
-      return `\u{2705} Got it! I'll remind about "${intent.message}" on ${formatDatetime(intent.datetime)}.`;
+      return t('addReminder', { message: intent.message, datetime: formatDatetime(intent.datetime) });
 
     case 'ADD_EVENT': {
       const info = result.data as string | undefined;
       return info
-        ? `\u{1F4C5} Added: ${info}`
-        : `\u{1F4C5} Added "${intent.title}" to the calendar for ${formatDatetime(intent.start)}.`;
+        ? t('addEvent', { info })
+        : t('addEventFallback', { title: intent.title, datetime: formatDatetime(intent.start) });
     }
 
     case 'ADD_SHOPPING': {
       const items = result.data as string[];
-      return `\u{1F6D2} Added to your list: ${items.join(', ')}`;
+      return t('addShopping', { items: items.join(', ') });
     }
 
     case 'COMPLETE_SHOPPING': {
       const count = result.data as number;
-      return `\u{2705} Marked ${count} item(s) as done!`;
+      return t('completeShopping', { count });
     }
 
     case 'QUERY_CALENDAR': {
       const data = result.data as string | null;
       return data
-        ? `\u{1F4C5} Here's what's coming up:\n${data}`
-        : `\u{1F4C5} Nothing coming up \u{2014} enjoy the free time! \u{1F389}`;
+        ? `${t('queryCalendarHeader')}\n${data}`
+        : t('queryCalendarEmpty');
     }
 
     case 'QUERY_SHOPPING': {
       const items = result.data as string[];
       return items.length
-        ? `\u{1F6D2} Shopping list:\n${items.map((i) => `\u{2022} ${i}`).join('\n')}`
-        : `\u{1F6D2} Shopping list is empty \u{2014} nice work! \u{1F389}`;
+        ? `${t('queryShoppingHeader')}\n${items.map((i) => `\u{2022} ${i}`).join('\n')}`
+        : t('queryShoppingEmpty');
     }
 
     case 'QUERY_TASKS': {
@@ -64,32 +55,32 @@ export function generateResponse(intent: ParsedIntent, result: ActionResult): st
 
       if (tasks.length) {
         const list = tasks
-          .map((t, i) => {
-            const due = t.due ? ` (due ${formatDate(t.due)})` : '';
-            return `${i + 1}. ${t.content}${due}`;
+          .map((task, i) => {
+            const due = task.due ? ` (${formatDate(task.due)})` : '';
+            return `${i + 1}. ${task.content}${due}`;
           })
           .join('\n');
-        sections.push(`\u{1F4DD} Open tasks:\n${list}`);
+        sections.push(`${t('queryTasksHeader')}\n${list}`);
       }
 
       if (appleReminders.length) {
         const list = appleReminders
           .map((r) => {
-            const due = r.dueDate ? ` (due ${formatDate(r.dueDate)})` : '';
+            const due = r.dueDate ? ` (${formatDate(r.dueDate)})` : '';
             return `\u{2022} ${r.name}${due} [${r.list}]`;
           })
           .join('\n');
-        sections.push(`\u{1F514} Apple Reminders:\n${list}`);
+        sections.push(`${t('queryRemindersHeader')}\n${list}`);
       }
 
       if (!sections.length) {
-        return `\u{1F4DD} No open tasks \u{2014} you're on top of things! \u{1F64C}`;
+        return t('queryTasksEmpty');
       }
       return sections.join('\n\n');
     }
 
     case 'HELP':
-      return HELP_TEXT;
+      return t('helpText');
 
     case 'CHITCHAT':
       return intent.reply;

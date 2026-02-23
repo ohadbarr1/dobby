@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { sendDailyBriefing } from './handlers/briefingHandler';
 import * as reminderRepo from './db/repositories/reminderRepo';
 import { sendToGroup } from './bot/whatsappClient';
+import { t } from './i18n';
 import logger from './utils/logger';
 
 const scheduledTasks: { stop: () => void }[] = [];
@@ -15,7 +16,7 @@ async function checkReminders(): Promise<void> {
       try {
         await sendToGroup(
           reminder.whatsappGroupId,
-          `\u{23F0} Reminder for *${reminder.forWhom}*: ${reminder.message}`
+          t('reminderNotification', { forWhom: reminder.forWhom, message: reminder.message })
         );
         await reminderRepo.markReminderSent(reminder.id);
         logger.info(`Sent reminder #${reminder.id}`);

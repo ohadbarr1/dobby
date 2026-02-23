@@ -2,6 +2,7 @@ import { ParsedIntent } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
 import { FamilyContext, FamilyMember } from '../types/family';
 import { createEvent, getMergedEvents, CalendarEvent } from '../integrations/appleCalendar';
+import { t } from '../i18n';
 import logger from '../utils/logger';
 
 type AddEventIntent = Extract<ParsedIntent, { intent: 'ADD_EVENT' }>;
@@ -10,7 +11,7 @@ type QueryCalendarIntent = Extract<ParsedIntent, { intent: 'QUERY_CALENDAR' }>;
 function formatEvent(e: CalendarEvent): string {
   if (e.isAllDay) {
     const day = e.start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-    return `\u{1F4C5} ${day} \u{2014} ${e.title} (${e.calendarOwner}) [all day]`;
+    return `\u{1F4C5} ${day} \u{2014} ${e.title} (${e.calendarOwner}) [${t('calendarAllDay')}]`;
   }
   const datetime = e.start.toLocaleString('en-GB', {
     weekday: 'short',
@@ -47,7 +48,7 @@ export async function handleAddEvent(intent: AddEventIntent, ctx: FamilyContext)
     }
 
     if (targets.length === 0) {
-      return { success: false, errorMsg: 'No connected calendars to add the event to \u{1F648}' };
+      return { success: false, errorMsg: t('calendarNoConnected') };
     }
 
     const eventData = {
@@ -71,7 +72,7 @@ export async function handleAddEvent(intent: AddEventIntent, ctx: FamilyContext)
     return { success: true, data: `${intent.title} on ${datetime}` };
   } catch (err) {
     logger.error(`handleAddEvent error: ${(err as Error).message}`);
-    return { success: false, errorMsg: 'Failed to create calendar event \u{1F648}' };
+    return { success: false, errorMsg: t('calendarCreateFailed') };
   }
 }
 
@@ -87,6 +88,6 @@ export async function handleQueryCalendar(intent: QueryCalendarIntent, ctx: Fami
     return { success: true, data: formatted };
   } catch (err) {
     logger.error(`handleQueryCalendar error: ${(err as Error).message}`);
-    return { success: false, errorMsg: 'Failed to fetch calendar \u{1F648}' };
+    return { success: false, errorMsg: t('calendarFetchFailed') };
   }
 }

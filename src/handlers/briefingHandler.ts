@@ -4,11 +4,12 @@ import * as taskRepo from '../db/repositories/taskRepo';
 import * as familyRepo from '../db/repositories/familyRepo';
 import * as memberRepo from '../db/repositories/memberRepo';
 import { sendToGroup } from '../bot/whatsappClient';
+import { t } from '../i18n';
 import logger from '../utils/logger';
 
 function formatBriefingEvent(e: CalendarEvent): string {
   if (e.isAllDay) {
-    return `  \u{2022} ${e.title} (${e.calendarOwner}) \u{2014} all day`;
+    return `  \u{2022} ${e.title} (${e.calendarOwner}) \u{2014} ${t('briefingAllDay')}`;
   }
   const time = e.start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return `  \u{2022} ${e.title} (${e.calendarOwner}) \u{2014} ${time}`;
@@ -27,26 +28,26 @@ async function sendBriefingForFamily(family: Family, members: FamilyMember[]): P
       }),
     ]);
 
-    const lines: string[] = ['\u{2600}\u{FE0F} Good morning! Here\'s your day:\n'];
+    const lines: string[] = [t('briefingGreeting')];
 
     // Calendar section
     if (events.length) {
-      lines.push('\u{1F4C5} *Today\'s events:*');
+      lines.push(t('briefingEventsHeader'));
       lines.push(...events.map(formatBriefingEvent));
     } else {
-      lines.push('\u{1F4C5} No events today');
+      lines.push(t('briefingNoEvents'));
     }
 
     // Tasks section
     lines.push('');
     if (tasks.length) {
-      lines.push('\u{1F4DD} *Open tasks:*');
-      tasks.forEach((t) => {
-        const due = t.due ? ` (due ${t.due})` : '';
-        lines.push(`  \u{2022} ${t.content}${due}`);
+      lines.push(t('briefingTasksHeader'));
+      tasks.forEach((task) => {
+        const due = task.due ? ` (${task.due})` : '';
+        lines.push(`  \u{2022} ${task.content}${due}`);
       });
     } else {
-      lines.push('\u{1F4DD} No open tasks \u{2014} enjoy your day!');
+      lines.push(t('briefingNoTasks'));
     }
 
     await sendToGroup(family.whatsappGroupId, lines.join('\n'));
