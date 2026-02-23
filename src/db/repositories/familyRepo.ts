@@ -63,3 +63,8 @@ export async function updateFamily(
   values.push(id);
   await getPool().query(`UPDATE families SET ${sets.join(', ')} WHERE id = $${idx}`, values);
 }
+
+export async function deleteFamily(id: number): Promise<boolean> {
+  const { rowCount } = await getPool().query('DELETE FROM families WHERE id = $1', [id]);
+  return (rowCount ?? 0) > 0;
+}

@@ -52,6 +52,32 @@ export async function getMemberByPhoneGlobal(phone: string): Promise<FamilyMembe
   return rows.length > 0 ? rowToMember(rows[0]) : null;
 }
 
+export async function getMemberById(id: number): Promise<FamilyMember | null> {
+  const { rows } = await getPool().query('SELECT * FROM family_members WHERE id = $1', [id]);
+  return rows.length > 0 ? rowToMember(rows[0]) : null;
+}
+
+export async function updateMember(
+  id: number,
+  data: Partial<{ name: string; phone: string }>
+): Promise<void> {
+  const sets: string[] = [];
+  const values: any[] = [];
+  let idx = 1;
+
+  if (data.name !== undefined) { sets.push(`name = $${idx++}`); values.push(data.name); }
+  if (data.phone !== undefined) { sets.push(`phone = $${idx++}`); values.push(data.phone); }
+
+  if (sets.length === 0) return;
+  values.push(id);
+  await getPool().query(`UPDATE family_members SET ${sets.join(', ')} WHERE id = $${idx}`, values);
+}
+
+export async function deleteMember(id: number): Promise<boolean> {
+  const { rowCount } = await getPool().query('DELETE FROM family_members WHERE id = $1', [id]);
+  return (rowCount ?? 0) > 0;
+}
+
 export async function updateMemberCalendar(
   memberId: number,
   refreshToken: string,

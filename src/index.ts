@@ -4,6 +4,7 @@ import './utils/config';
 import { initDb, closeDb } from './db/database';
 import { startBot, destroyClient } from './bot/whatsappClient';
 import { startCronJobs, stopCronJobs } from './cron';
+import { startApi } from './api/server';
 
 async function main(): Promise<void> {
   logger.info('\u{1F916} Dobby is starting up...');
@@ -14,6 +15,7 @@ async function main(): Promise<void> {
   await initDb();
   await startBot();
   startCronJobs();
+  startApi();
 
   logger.info('\u{2705} Dobby is ready');
 }

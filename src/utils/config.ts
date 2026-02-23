@@ -8,6 +8,8 @@ export interface GlobalConfig {
   GOOGLE_CLIENT_SECRET: string;
   LOG_LEVEL: string;
   NODE_ENV: string;
+  API_PORT: number;
+  API_KEY: string;
 }
 
 const REQUIRED_KEYS: (keyof GlobalConfig)[] = [
@@ -31,6 +33,8 @@ function loadConfig(): GlobalConfig {
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',
     NODE_ENV: process.env.NODE_ENV || 'development',
+    API_PORT: parseInt(process.env.API_PORT || '3000', 10),
+    API_KEY: process.env.API_KEY || '',
   };
 }
 
