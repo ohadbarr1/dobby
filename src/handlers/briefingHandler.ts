@@ -1,4 +1,4 @@
-import { getMergedEvents, CalendarEvent } from '../integrations/googleCalendar';
+import { getMergedEvents, CalendarEvent } from '../integrations/appleCalendar';
 import { Family, FamilyMember } from '../types/family';
 import * as taskRepo from '../db/repositories/taskRepo';
 import * as familyRepo from '../db/repositories/familyRepo';

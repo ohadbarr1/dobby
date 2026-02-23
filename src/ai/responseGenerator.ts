@@ -1,5 +1,6 @@
 import { ParsedIntent } from './intentParser';
 import { OpenTask } from '../db/repositories/taskRepo';
+import { AppleReminder } from '../integrations/appleReminders';
 
 export interface ActionResult {
   success: boolean;
@@ -58,17 +59,33 @@ export function generateResponse(intent: ParsedIntent, result: ActionResult): st
     }
 
     case 'QUERY_TASKS': {
-      const tasks = result.data as OpenTask[];
-      if (!tasks.length) {
+      const { tasks, appleReminders } = result.data as { tasks: OpenTask[]; appleReminders: AppleReminder[] };
+      const sections: string[] = [];
+
+      if (tasks.length) {
+        const list = tasks
+          .map((t, i) => {
+            const due = t.due ? ` (due ${formatDate(t.due)})` : '';
+            return `${i + 1}. ${t.content}${due}`;
+          })
+          .join('\n');
+        sections.push(`\u{1F4DD} Open tasks:\n${list}`);
+      }
+
+      if (appleReminders.length) {
+        const list = appleReminders
+          .map((r) => {
+            const due = r.dueDate ? ` (due ${formatDate(r.dueDate)})` : '';
+            return `\u{2022} ${r.name}${due} [${r.list}]`;
+          })
+          .join('\n');
+        sections.push(`\u{1F514} Apple Reminders:\n${list}`);
+      }
+
+      if (!sections.length) {
         return `\u{1F4DD} No open tasks \u{2014} you're on top of things! \u{1F64C}`;
       }
-      const list = tasks
-        .map((t, i) => {
-          const due = t.due ? ` (due ${formatDate(t.due)})` : '';
-          return `${i + 1}. ${t.content}${due}`;
-        })
-        .join('\n');
-      return `\u{1F4DD} Open tasks:\n${list}`;
+      return sections.join('\n\n');
     }
 
     case 'HELP':

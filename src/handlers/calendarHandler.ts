@@ -1,7 +1,7 @@
 import { ParsedIntent } from '../ai/intentParser';
 import { ActionResult } from '../ai/responseGenerator';
 import { FamilyContext, FamilyMember } from '../types/family';
-import { createEvent, getMergedEvents, CalendarEvent } from '../integrations/googleCalendar';
+import { createEvent, getMergedEvents, CalendarEvent } from '../integrations/appleCalendar';
 import logger from '../utils/logger';
 
 type AddEventIntent = Extract<ParsedIntent, { intent: 'ADD_EVENT' }>;
