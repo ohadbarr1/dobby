@@ -3,6 +3,7 @@ import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 const qrcode = require('qrcode-terminal');
 import { handleMessage } from '../handlers/messageHandler';
 import { getFamilyContext, getFamilyContextByPhone } from '../services/familyService';
+import { handleOnboarding } from '../handlers/onboardingHandler';
 import logger from '../utils/logger';
 
 let client: Client;
@@ -102,7 +103,18 @@ async function processMessage(msg: Message): Promise<void> {
     const ctx = isGroup
       ? await getFamilyContext(chatId, phone)
       : await getFamilyContextByPhone(phone);
-    if (!ctx) return; // Not a registered family/member — ignore
+    if (!ctx) {
+      // Not a registered family/member — try onboarding flow
+      if (isGroup) {
+        const reply = await handleOnboarding(chatId, phone, msg.body, chat.name || '');
+        if (reply) {
+          const sent = await msg.reply(reply);
+          botMessageIds.add(sent.id._serialized);
+          setTimeout(() => botMessageIds.delete(sent.id._serialized), 30_000);
+        }
+      }
+      return;
+    }
 
     logger.info(`[${ctx.family.name}/${ctx.member.name}] ${msg.body}`);
 
