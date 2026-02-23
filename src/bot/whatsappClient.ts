@@ -1,4 +1,6 @@
-import { Client, LocalAuth, Message } from 'whatsapp-web.js';
+import { Client, LocalAuth, Message, MessageMedia } from 'whatsapp-web.js';
+import path from 'path';
+import fs from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const qrcode = require('qrcode-terminal');
 import { handleMessage } from '../handlers/messageHandler';
@@ -45,8 +47,23 @@ export async function startBot(): Promise<void> {
     logger.info('WhatsApp authenticated');
   });
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     logger.info('\u{2705} WhatsApp client is ready');
+
+    // Set Dobby's WhatsApp profile
+    try {
+      await client.setDisplayName('Dobby \u{1F9E6}');
+      await client.setStatus('\u{1F9E6} \u05D3\u05D5\u05D1\u05D9 - \u05D4\u05E2\u05D5\u05D6\u05E8 \u05D4\u05DE\u05E9\u05E4\u05D7\u05EA\u05D9 | \u05E9\u05DC\u05D7\u05D5 7 \u05DC\u05EA\u05E4\u05E8\u05D9\u05D8');
+
+      const picPath = path.resolve('assets/dobby-profile.png');
+      if (fs.existsSync(picPath)) {
+        const media = MessageMedia.fromFilePath(picPath);
+        await client.setProfilePicture(media);
+        logger.info('Dobby profile picture set');
+      }
+    } catch (err) {
+      logger.warn(`Failed to set Dobby profile: ${(err as Error).message}`);
+    }
   });
 
   client.on('auth_failure', (msg) => {
