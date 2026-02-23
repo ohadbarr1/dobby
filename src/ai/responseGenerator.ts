@@ -89,7 +89,7 @@ export function generateResponse(intent: ParsedIntent, result: ActionResult): st
 
 function formatDatetime(iso: string): string {
   try {
-    return new Date(iso).toLocaleString('en-GB', {
+    return new Date(iso).toLocaleString('he-IL', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
@@ -103,7 +103,7 @@ function formatDatetime(iso: string): string {
 
 function formatDate(dateStr: string): string {
   try {
-    return new Date(dateStr).toLocaleDateString('en-GB', {
+    return new Date(dateStr).toLocaleDateString('he-IL', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',

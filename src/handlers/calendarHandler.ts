@@ -10,10 +10,10 @@ type QueryCalendarIntent = Extract<ParsedIntent, { intent: 'QUERY_CALENDAR' }>;
 
 function formatEvent(e: CalendarEvent): string {
   if (e.isAllDay) {
-    const day = e.start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const day = e.start.toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'short' });
     return `\u{1F4C5} ${day} \u{2014} ${e.title} (${e.calendarOwner}) [${t('calendarAllDay')}]`;
   }
-  const datetime = e.start.toLocaleString('en-GB', {
+  const datetime = e.start.toLocaleString('he-IL', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -60,7 +60,7 @@ export async function handleAddEvent(intent: AddEventIntent, ctx: FamilyContext)
 
     await Promise.all(targets.map((m) => createEvent(m, eventData)));
 
-    const datetime = eventData.start.toLocaleString('en-GB', {
+    const datetime = eventData.start.toLocaleString('he-IL', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',

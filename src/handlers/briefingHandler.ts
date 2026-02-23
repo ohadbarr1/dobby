@@ -11,7 +11,7 @@ function formatBriefingEvent(e: CalendarEvent): string {
   if (e.isAllDay) {
     return `  \u{2022} ${e.title} (${e.calendarOwner}) \u{2014} ${t('briefingAllDay')}`;
   }
-  const time = e.start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const time = e.start.toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' });
   return `  \u{2022} ${e.title} (${e.calendarOwner}) \u{2014} ${time}`;
 }
 
